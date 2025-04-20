@@ -44,7 +44,7 @@ export default function CheckoutPage() {
       setShowQrModal(false);
       
       // Redirect to products page instead of home page
-      router.push('/products');
+      router.push("/checkout");
     } catch (error) {
       console.error('Error creating order:', error);
       setIsProcessing(false);

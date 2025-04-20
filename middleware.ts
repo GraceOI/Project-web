@@ -1,146 +1,68 @@
+// middleware.ts
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
+// ระบุเส้นทางที่ต้องการป้องกัน
 const protectedRoutes = [
-  '/admin',
-  '/profile',
-  '/orders',
-  '/checkout',
-  '/cart', // Add cart to protected routes
-  '/api/orders',
-  '/api/products/manage'
+  '/api/products',
+  '/api/orders'
 ];
 
 const adminRoutes = [
-  '/admin',
-  '/api/products/manage',
-  '/api/users'
-];
-
-const publicRoutes = [
-  '/api/auth/login',
-  '/api/auth/register',
-  '/auth/login',
-  '/auth/register',
-  '/',
-  '/products',
-  '/api/products',
-  '/images',
-  '/uploads'
+  '/api/admin'
 ];
 
 export async function middleware(request: NextRequest) {
-  const path = request.nextUrl.pathname;
-  
+  const pathname = request.nextUrl.pathname;
 
-  if (publicRoutes.some(route => path === route || path.startsWith(`${route}/`))) {
+  // ตรวจสอบว่าเป็นเส้นทางที่ต้องการป้องกันหรือไม่
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
+
+  if (!isProtectedRoute && !isAdminRoute) {
     return NextResponse.next();
   }
 
+  const authHeader = request.headers.get('authorization');
   
-  if (path.startsWith('/api/auth')) {
-    return NextResponse.next();
-  }
-  
-
-  const isProtectedRoute = protectedRoutes.some(route => 
-    path === route || path.startsWith(`${route}/`)
-  );
-  
-  
-  const isAdminRoute = adminRoutes.some(route => 
-    path === route || path.startsWith(`${route}/`)
-  );
-  
-  
-  if (!isProtectedRoute) {
-    return NextResponse.next();
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return NextResponse.json(
+      { message: 'Unauthorized' },
+      { status: 401 }
+    );
   }
 
-  
-  const authToken = request.cookies.get('auth-token')?.value;
-  const nextAuthToken = request.cookies.get('next-auth.session-token')?.value;
-  const headerToken = request.headers.get('Authorization')?.replace('Bearer ', '');
-  
-  
-  const token = authToken || nextAuthToken || headerToken;
-
-  
-  if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('callbackUrl', request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+  // แยก token จาก header
+  const token = authHeader.split(' ')[1];
 
   try {
-    // สร้าง secret key จาก environment variables
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'fallback_secret'
-    );
-    
     // ตรวจสอบ token
-    const { payload } = await jwtVerify(token, secret, {
-      clockTolerance: 60 // อนุญาตให้มีความคลาดเคลื่อนของเวลาได้ 60 วินาที
-    });
-    
-    // ตรวจสอบสิทธิ์ admin สำหรับเส้นทางของแอดมิน
+    const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret');
+    const { payload } = await jwtVerify(token, secretKey);
+
+    // ตรวจสอบสิทธิ์สำหรับ admin routes
     if (isAdminRoute && payload.role !== 'ADMIN') {
-      // ถ้าผู้ใช้ไม่ใช่แอดมิน แต่พยายามเข้าถึงหน้าแอดมิน
-      if (request.headers.get('content-type')?.includes('application/json')) {
-        // ถ้าเป็น API request ให้ส่ง JSON response กลับไป
-        return NextResponse.json(
-          { message: 'Access denied. Admin privileges required.' },
-          { status: 403 }
-        );
-      } else {
-        // ถ้าเป็นการเข้าถึงหน้าเว็บ ให้ redirect ไปยังหน้าแรก
-        return NextResponse.redirect(new URL('/', request.url));
-      }
+      return NextResponse.json(
+        { message: 'Forbidden: Admin access required' },
+        { status: 403 }
+      );
     }
 
-    // เพิ่มข้อมูลผู้ใช้ใน request headers
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-user-id', payload.id as string);
-    requestHeaders.set('x-user-email', payload.email as string);
-    requestHeaders.set('x-user-role', payload.role as string);
-
-    // อนุญาตให้ดำเนินการต่อไป
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    });
+    return NextResponse.next();
   } catch (error) {
-    console.error('JWT verification failed:', error);
-    
-    // ลบ cookie ที่ไม่ถูกต้อง
-    const response = NextResponse.redirect(
-      new URL('/login', request.url)
+    return NextResponse.json(
+      { message: 'Invalid token' },
+      { status: 401 }
     );
-    
-    response.cookies.delete('auth-token');
-    
-    // เพิ่ม query parameter เพื่อแสดงข้อความเตือน
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('error', 'InvalidSession');
-    
-    return NextResponse.redirect(loginUrl);
   }
 }
 
-// กำหนดว่า middleware จะทำงานกับ URL pattern ใดบ้าง
+// ระบุว่าใช้ middleware กับเส้นทางไหนบ้าง
 export const config = {
   matcher: [
-    // เส้นทางหน้าเว็บ
-    '/admin/:path*',
-    '/profile/:path*',
-    '/orders/:path*',
-    '/checkout/:path*',
-    // เส้นทาง API (ยกเว้น NextAuth API routes)
-    '/api/((?!auth).*)/:path*',
+    '/api/products/:path*',
     '/api/orders/:path*',
-    '/api/products/manage/:path*',
-    '/api/users/:path*',
+    '/api/admin/:path*'
   ],
 };

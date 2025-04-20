@@ -19,28 +19,29 @@ export default function Header() {
           <Link href="/" className="text-2xl font-bold">
             Thai Desserts Online
           </Link>
-          
+
           {/* Mobile menu button */}
-          <button 
-            className="md:hidden flex items-center"
-            onClick={toggleMenu}
-          >
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              className="h-6 w-6" 
-              fill="none" 
-              viewBox="0 0 24 24" 
+          <button className="md:hidden flex items-center" onClick={toggleMenu}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth="2" 
-                d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d={
+                  isMenuOpen
+                    ? "M6 18L18 6M6 6l12 12"
+                    : "M4 6h16M4 12h16M4 18h16"
+                }
               />
             </svg>
           </button>
-          
+
           {/* Desktop navigation */}
           <nav className="hidden md:flex space-x-6">
             <Link href="/" className="hover:text-amber-200">
@@ -54,15 +55,15 @@ export default function Header() {
             </Link>
             {session ? (
               <>
-                <Link href="/orders" className="hover:text-amber-200">
-                  My Orders
-                </Link>
-                {session.user.role === 'ADMIN' && (
-  <Link href="/admin" className="hover:text-amber-200">
-    Admin
-  </Link>
-)}
-                <button 
+                {session?.user?.role === "ADMIN" && (
+                  <Link
+                    href="/admin/dashboard"
+                    className="hover:text-amber-200"
+                  >
+                    Admin
+                  </Link>
+                )}
+                <button
                   onClick={() => signOut()}
                   className="hover:text-amber-200"
                 >
@@ -76,26 +77,26 @@ export default function Header() {
             )}
           </nav>
         </div>
-        
+
         {/* Mobile navigation */}
         {isMenuOpen && (
           <nav className="mt-4 flex flex-col space-y-3 md:hidden">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="hover:text-amber-200"
               onClick={() => setIsMenuOpen(false)}
             >
               Home
             </Link>
-            <Link 
-              href="/products" 
+            <Link
+              href="/products"
               className="hover:text-amber-200"
               onClick={() => setIsMenuOpen(false)}
             >
               Products
             </Link>
-            <Link 
-              href="/cart" 
+            <Link
+              href="/cart"
               className="hover:text-amber-200"
               onClick={() => setIsMenuOpen(false)}
             >
@@ -103,23 +104,23 @@ export default function Header() {
             </Link>
             {session ? (
               <>
-                <Link 
-                  href="/orders" 
+                <Link
+                  href="/orders"
                   className="hover:text-amber-200"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   My Orders
                 </Link>
-                {session.user.role === 'ADMIN' && (
-                  <Link 
-                    href="/admin/dashboard" 
+                {session.user.role === "ADMIN" && (
+                  <Link
+                    href="/admin/dashboard"
                     className="hover:text-amber-200"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Admin
                   </Link>
                 )}
-                <button 
+                <button
                   onClick={() => {
                     signOut();
                     setIsMenuOpen(false);
@@ -130,8 +131,8 @@ export default function Header() {
                 </button>
               </>
             ) : (
-              <Link 
-                href="/auth/login" 
+              <Link
+                href="/auth/login"
                 className="hover:text-amber-200"
                 onClick={() => setIsMenuOpen(false)}
               >

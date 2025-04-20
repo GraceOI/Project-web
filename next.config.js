@@ -1,10 +1,9 @@
-// next.config.js
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
     domains: ['api.qrserver.com'],
   },
+  reactStrictMode: true,
   // config options here
 };
 
