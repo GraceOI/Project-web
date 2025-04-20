@@ -1,17 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-
-interface OrderItem {
-  id: string;
-  quantity: number;
-  price: number;
-  product: {
-    id: string;
-    name: string;
-  };
-}
+import Link from 'next/link';
 
 interface Order {
   id: string;
@@ -19,102 +11,116 @@ interface Order {
   totalAmount: number;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED';
   createdAt: string;
-  orderItems: OrderItem[];
   user: {
-    id: string;
     name: string;
     email: string;
   };
+  orderItems: Array<{
+    id: string;
+    quantity: number;
+    price: number;
+    product: {
+      name: string;
+    };
+  }>;
 }
 
-export default function AdminOrdersPage() {
+export default function AdminOrders() {
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push('/auth/login?callbackUrl=/admin/orders');
+    },
+  });
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   useEffect(() => {
+    if (status === 'loading') return;
+    
+    if (!session) return;
+
+    if (session.user.role !== 'ADMIN') {
+      router.push('/');
+      return;
+    }
+
     fetchOrders();
-  }, []);
-  
+  }, [session, status, router]);
+
   const fetchOrders = async () => {
     try {
-      setIsLoading(true);
-      const response = await fetch('/api/orders?fetchAll=true');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch orders');
-      }
-      
+      const response = await fetch('/api/admin/orders');
+      if (!response.ok) throw new Error('Failed to fetch orders');
       const data = await response.json();
       setOrders(data);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      setError('Failed to load orders. Please try again.');
+    } catch (err) {
+      setError('Failed to load orders');
+      console.error(err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
-  
-  const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
-    setIsModalOpen(true);
-  };
-  
-  const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+
+  const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/orders/${orderId}`, {
-        method: 'PUT',
+      const response = await fetch(`/api/admin/orders/${orderId}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ status: newStatus }),
       });
+
+      if (!response.ok) throw new Error('Failed to update order');
       
-      if (!response.ok) {
-        throw new Error('Failed to update order status');
-      }
-      
-      // Update orders in state
-      setOrders(orders.map(order => 
-        order.id === orderId 
-          ? { ...order, status: newStatus } 
-          : order
-      ));
-      
-      // Update selected order if it's currently being viewed
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: newStatus });
-      }
-      
-    } catch (error) {
-      console.error('Error updating order status:', error);
-      alert('Failed to update order status. Please try again.');
+      // Refresh orders list
+      fetchOrders();
+    } catch (err) {
+      setError('Failed to update order status');
+      console.error(err);
     }
   };
-  
-  if (isLoading) {
+
+  const deleteOrder = async (orderId: string) => {
+    if (!window.confirm('Are you sure you want to delete this order?')) return;
+
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete order');
+      
+      // Refresh orders list
+      fetchOrders();
+    } catch (err) {
+      setError('Failed to delete order');
+      console.error(err);
+    }
+  };
+
+  if (status === 'loading' || loading) {
     return (
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Manage Orders</h1>
-        <div className="bg-white rounded-lg shadow-md p-8 text-center">
-          <p>Loading orders...</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>
     );
   }
-  
+
   if (error) {
     return (
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Manage Orders</h1>
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <p className="text-red-500 mb-4">{error}</p>
-          <button 
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">{error}</div>
+          <button
             onClick={fetchOrders}
-            className="px-4 py-2 bg-amber-600 text-white font-semibold rounded-md hover:bg-amber-700"
+            className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
           >
             Try Again
           </button>
@@ -122,15 +128,16 @@ export default function AdminOrdersPage() {
       </div>
     );
   }
-  
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Manage Orders</h1>
-      
-      {/* Orders Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Manage Orders</h1>
+      </div>
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -140,13 +147,16 @@ export default function AdminOrdersPage() {
                   Customer
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
+                  Items
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
+                  Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -167,18 +177,23 @@ export default function AdminOrdersPage() {
                       {order.user.email}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(order.createdAt).toLocaleDateString()}
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-900">
+                      {order.orderItems.map((item) => (
+                        <div key={item.id}>
+                          {item.quantity}x {item.product.name}
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ${order.totalAmount.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
                       value={order.status}
-                      onChange={(e) => handleUpdateStatus(order.id, e.target.value as Order['status'])}
-                      className={`border-0 rounded-full px-3 py-1 text-xs font-medium
-                        ${order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                          'bg-red-100 text-red-800'}`}
+                      onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                      className="text-sm rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
                     >
                       <option value="PENDING">Pending</option>
                       <option value="PROCESSING">Processing</option>
@@ -186,23 +201,22 @@ export default function AdminOrdersPage() {
                       <option value="CANCELLED">Cancelled</option>
                     </select>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                    ${order.totalAmount.toFixed(2)}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(order.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
-                      onClick={() => handleViewOrder(order)}
-                      className="text-amber-600 hover:text-amber-800"
+                      onClick={() => deleteOrder(order.id)}
+                      className="text-red-600 hover:text-red-900 ml-4"
                     >
-                      View Details
+                      Delete
                     </button>
                   </td>
                 </tr>
               ))}
-              
               {orders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
                     No orders found
                   </td>
                 </tr>
@@ -211,119 +225,6 @@ export default function AdminOrdersPage() {
           </table>
         </div>
       </div>
-      
-      {/* Order Details Modal */}
-      {isModalOpen && selectedOrder && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-90vh overflow-y-auto">
-            <div className="px-6 py-4 border-b flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Order Details
-              </h2>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="p-6">
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <p className="text-sm text-gray-500">Order ID</p>
-                  <p className="font-medium">{selectedOrder.id}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Date</p>
-                  <p className="font-medium">{new Date(selectedOrder.createdAt).toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Customer</p>
-                  <p className="font-medium">{selectedOrder.user.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium">{selectedOrder.user.email}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <select
-                    value={selectedOrder.status}
-                    onChange={(e) => handleUpdateStatus(selectedOrder.id, e.target.value as Order['status'])}
-                    className={`mt-1 border rounded px-2 py-1 text-sm font-medium
-                      ${selectedOrder.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
-                        selectedOrder.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                        selectedOrder.status === 'COMPLETED' ? 'bg-green-100 text-green-800 border-green-200' :
-                        'bg-red-100 text-red-800 border-red-200'}`}
-                  >
-                    <option value="PENDING">Pending</option>
-                    <option value="PROCESSING">Processing</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="CANCELLED">Cancelled</option>
-                  </select>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Amount</p>
-                  <p className="font-medium text-amber-600">${selectedOrder.totalAmount.toFixed(2)}</p>
-                </div>
-              </div>
-              
-              <h3 className="text-lg font-medium text-gray-800 mb-3">Order Items</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Product
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Price
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quantity
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Subtotal
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {selectedOrder.orderItems.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3 text-sm">
-                          {item.product.name}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right">
-                          ${item.price.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right">
-                          {item.quantity}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-right">
-                          ${(item.price * item.quantity).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-50">
-                    <tr>
-                      <td colSpan={3} className="px-4 py-3 text-sm font-medium text-right">
-                        Total:
-                      </td>
-                      <td className="px-4 py-3 text-sm font-bold text-right">
-                        ${selectedOrder.totalAmount.toFixed(2)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

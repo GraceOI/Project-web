@@ -1,76 +1,72 @@
-// ไฟล์: middleware.ts (วางในรูทโฟลเดอร์ของโปรเจค)
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-// กำหนดเส้นทางที่ต้องมีการยืนยันตัวตน
 const protectedRoutes = [
   '/admin',
   '/profile',
   '/orders',
   '/checkout',
+  '/cart', // Add cart to protected routes
   '/api/orders',
   '/api/products/manage'
-  // เพิ่มเส้นทางอื่นๆ ตามต้องการ
 ];
 
-// กำหนดเส้นทางที่ต้องการสิทธิ์แอดมิน
 const adminRoutes = [
   '/admin',
   '/api/products/manage',
   '/api/users'
-  // เพิ่มเส้นทางอื่นๆ ตามต้องการ
 ];
 
-// เส้นทางสาธารณะที่ไม่ต้องมีการยืนยันตัวตน
 const publicRoutes = [
   '/api/auth/login',
   '/api/auth/register',
-  '/login',
-  '/register',
+  '/auth/login',
+  '/auth/register',
   '/',
   '/products',
-  '/api/products'
-  // เพิ่มเส้นทางอื่นๆ ตามต้องการ
+  '/api/products',
+  '/images',
+  '/uploads'
 ];
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   
-  // ข้ามการตรวจสอบสำหรับเส้นทางสาธารณะ
+
   if (publicRoutes.some(route => path === route || path.startsWith(`${route}/`))) {
     return NextResponse.next();
   }
 
-  // ข้ามการตรวจสอบสำหรับ NextAuth API routes
+  
   if (path.startsWith('/api/auth')) {
     return NextResponse.next();
   }
   
-  // ตรวจสอบว่าเป็นเส้นทางที่ต้องยืนยันตัวตนหรือไม่
+
   const isProtectedRoute = protectedRoutes.some(route => 
     path === route || path.startsWith(`${route}/`)
   );
   
-  // ตรวจสอบว่าเป็นเส้นทางที่ต้องมีสิทธิ์แอดมินหรือไม่
+  
   const isAdminRoute = adminRoutes.some(route => 
     path === route || path.startsWith(`${route}/`)
   );
   
-  // ถ้าไม่ใช่เส้นทางที่ต้องปกป้อง ให้ผ่านไปได้เลย
+  
   if (!isProtectedRoute) {
     return NextResponse.next();
   }
 
-  // ดึง token จาก cookie
+  
   const authToken = request.cookies.get('auth-token')?.value;
   const nextAuthToken = request.cookies.get('next-auth.session-token')?.value;
   const headerToken = request.headers.get('Authorization')?.replace('Bearer ', '');
   
-  // ใช้ token จากแหล่งใดแหล่งหนึ่ง โดยเรียงลำดับความสำคัญ
+  
   const token = authToken || nextAuthToken || headerToken;
 
-  // ถ้าไม่มี token ให้เปลี่ยนเส้นทางไปยังหน้า login
+  
   if (!token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', request.nextUrl.pathname);
@@ -143,5 +139,8 @@ export const config = {
     '/checkout/:path*',
     // เส้นทาง API (ยกเว้น NextAuth API routes)
     '/api/((?!auth).*)/:path*',
+    '/api/orders/:path*',
+    '/api/products/manage/:path*',
+    '/api/users/:path*',
   ],
 };

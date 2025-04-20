@@ -1,174 +1,177 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 
-export default function CartPage() {
+export default function CheckoutPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const { items, totalPrice, clearCart } = useCart();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [orderComplete, setOrderComplete] = useState(false);
   
-  const handleCheckout = () => {
+  // Redirect if cart is empty
+  useEffect(() => {
+    if (items.length === 0 && !orderComplete) {
+      router.push('/cart');
+    }
+  }, [items, router, orderComplete]);
+  
+  const handleShowQrCode = () => {
     if (!session) {
-      router.push('/auth/login?redirect=/cart');
+      router.push('/auth/login?redirect=/checkout');
       return;
     }
     
-    // Navigate to the checkout page
-    router.push('/checkout');
+    setShowQrModal(true);
   };
   
-  if (items.length === 0) {
-    return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <h1 className="text-3xl font-bold text-gray-800 mb-6">Your Cart</h1>
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <p className="text-xl text-gray-600 mb-6">Your cart is empty</p>
-          <Link 
-            href="/products" 
-            className="px-6 py-3 bg-amber-600 text-white font-semibold rounded-md hover:bg-amber-700 inline-block"
-          >
-            Continue Shopping
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const handlePlaceOrder = async () => {
+    setIsProcessing(true);
+    
+    try {
+      
+    
+      
+      // Clear the cart after successful order
+      clearCart();
+      setOrderComplete(true);
+      setShowQrModal(false);
+      
+      // Redirect to products page instead of home page
+      router.push('/products');
+    } catch (error) {
+      console.error('Error creating order:', error);
+      setIsProcessing(false);
+      alert('There was a problem processing your order. Please try again.');
+    }
+  };
   
   return (
-    <div className="container mx-auto px-4">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Your Cart</h1>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Checkout</h1>
       
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="lg:w-2/3">
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
             <div className="p-4 border-b">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Cart Items ({items.length})
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-800">Order Summary</h2>
             </div>
             
-            <ul className="divide-y divide-gray-200">
-              {items.map((item) => (
-                <li key={item.id} className="p-4 flex flex-col sm:flex-row">
-                  <div className="sm:w-24 sm:h-24 mb-4 sm:mb-0 mr-4 relative">
-                    <Image 
-                      src={item.imageUrl} 
-                      alt={item.name} 
-                      fill
-                      className="object-cover rounded"
-                      style={{ objectFit: 'cover' }}
-                    />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-1">
-                      {item.name}
-                    </h3>
-                    <p className="text-amber-600 font-medium mb-2">
-                      ${item.price.toFixed(2)}
-                    </p>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center border border-gray-300 rounded-md">
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          className="px-3 py-1 text-gray-600 hover:bg-gray-100"
-                        >
-                          -
-                        </button>
-                        <span className="px-4 py-1">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="px-3 py-1 text-gray-600 hover:bg-gray-100"
-                        >
-                          +
-                        </button>
+            <div className="p-4">
+              <div className="space-y-4">
+                {items.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className="w-16 h-16 relative mr-4">
+                        <Image 
+                          src={item.imageUrl} 
+                          alt={item.name} 
+                          fill
+                          className="object-cover rounded"
+                          style={{ objectFit: 'cover' }}
+                        />
                       </div>
-                      
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        Remove
-                      </button>
+                      <div>
+                        <h3 className="font-medium text-gray-800">{item.name}</h3>
+                        <p className="text-gray-600 text-sm">Quantity: {item.quantity}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-800">
+                        ${(item.price * item.quantity).toFixed(2)}
+                      </p>
                     </div>
                   </div>
-                  
-                  <div className="text-right font-semibold text-gray-800 mt-4 sm:mt-0 sm:ml-4">
-                    ${(item.price * item.quantity).toFixed(2)}
-                  </div>
-                </li>
-              ))}
-            </ul>
-            
-            <div className="p-4 border-t flex justify-end">
-              <button
-                onClick={clearCart}
-                className="text-red-500 hover:text-red-700"
-              >
-                Clear Cart
-              </button>
+                ))}
+              </div>
+              
+              <div className="border-t mt-6 pt-4">
+                <div className="flex justify-between text-xl font-bold mb-2">
+                  <span>Total</span>
+                  <span>${totalPrice.toFixed(2)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
         
         <div className="lg:w-1/3">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              Order Summary
-            </h2>
+          <div className="bg-white rounded-lg shadow-md p-6 sticky top-4">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Payment Details</h2>
             
-            <div className="space-y-3 mb-6">
-              {items.map((item) => (
-                <div key={item.id} className="flex justify-between text-gray-700">
-                  <span>
-                    {item.name} x {item.quantity}
-                  </span>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-            
-            <div className="border-t pt-4 mb-6">
-              <div className="flex justify-between text-xl font-bold">
-                <span>Total</span>
-                <span>${totalPrice.toFixed(2)}</span>
+            <div className="text-center">
+              <div className="mb-4">
+                <p className="text-gray-700 mb-2">Pay with QR Code:</p>
+                <p className="text-amber-600 font-medium text-lg mb-4">
+                  Total: ${totalPrice.toFixed(2)}
+                </p>
               </div>
             </div>
             
             <button
-              onClick={handleCheckout}
-              disabled={isCheckingOut}
-              className={`w-full px-6 py-3 bg-amber-600 text-white font-semibold rounded-md 
-                ${isCheckingOut ? 'bg-amber-400' : 'hover:bg-amber-700'} 
-                transition-colors`}
+              onClick={handleShowQrCode}
+              className="w-full px-6 py-3 mt-4 bg-amber-600 text-white font-semibold rounded-md hover:bg-amber-700 transition-colors"
             >
-              {isCheckingOut ? 'Processing...' : 'Checkout'}
+              Pay with QR Code
             </button>
             
-            {!session && (
-              <p className="mt-4 text-sm text-gray-600 text-center">
-                You'll need to login before checkout.
-              </p>
-            )}
+            <p className="text-center mt-4 text-sm text-gray-600">
+              By placing your order, you agree to our Terms of Service and Privacy Policy
+            </p>
             
             <div className="mt-6 text-center">
               <Link 
-                href="/products" 
+                href="/cart" 
                 className="text-amber-600 hover:text-amber-800"
               >
-                Continue Shopping
+                Return to Cart
               </Link>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* QR Code Modal */}
+      {showQrModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Scan QR Code to Pay</h3>
+            
+            <div className="text-center mb-6">
+            <div className="bg-gray-100 p-4 rounded-lg inline-block mb-4">
+  {/* Using standard img tag instead of next/image */}
+  <img 
+    src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=ThaiDessertShopPayment"
+    alt="Payment QR Code" 
+    width={200}
+    height={200}
+    className="mx-auto"
+  />
+</div>
+              
+              <p className="text-amber-600 font-medium">
+                Amount: ${totalPrice.toFixed(2)}
+              </p>
+            </div>
+            
+            <div className="flex justify-center">
+              <button
+                onClick={handlePlaceOrder}
+                disabled={isProcessing}
+                className="px-6 py-3 bg-amber-600 text-white font-semibold rounded-md hover:bg-amber-700 transition-colors"
+              >
+                {isProcessing ? 'Processing...' : 'Payment Complete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

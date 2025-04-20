@@ -58,10 +58,10 @@ export default function Header() {
                   My Orders
                 </Link>
                 {session.user.role === 'ADMIN' && (
-                  <Link href="/admin/dashboard" className="hover:text-amber-200">
-                    Admin
-                  </Link>
-                )}
+  <Link href="/admin" className="hover:text-amber-200">
+    Admin
+  </Link>
+)}
                 <button 
                   onClick={() => signOut()}
                   className="hover:text-amber-200"

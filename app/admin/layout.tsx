@@ -11,8 +11,16 @@ export default async function AdminLayout({
   // Check if user is authenticated and is an admin
   const session = await getServerSession(authOptions);
   
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) {
+    // Redirect to login page with returnUrl
+    redirect('/auth/login?returnUrl=/admin/dashboard');
+    return null; // This return is not strictly necessary but added for clarity
+  }
+  
+  if (session.user.role !== 'ADMIN') {
+    // Redirect non-admin users to the home page
     redirect('/');
+    return null; // This return is not strictly necessary but added for clarity
   }
   
   return (
