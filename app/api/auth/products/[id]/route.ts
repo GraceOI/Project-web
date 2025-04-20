@@ -76,7 +76,9 @@ export async function PUT(request: Request, { params }: Params) {
       data: {
         name: name ?? existingProduct.name,
         description: description ?? existingProduct.description,
-        price: price ?? existingProduct.price,
+        price: price !== undefined ? 
+          (typeof price === 'string' ? parseFloat(price) : price) : 
+          existingProduct.price,
         imageUrl: imageUrl ?? existingProduct.imageUrl,
         inStock: inStock !== undefined ? inStock : existingProduct.inStock,
       },

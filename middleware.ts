@@ -1,68 +1,86 @@
-// middleware.ts
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { getToken } from 'next-auth/jwt';
 
-// ระบุเส้นทางที่ต้องการป้องกัน
+
 const protectedRoutes = [
-  '/api/products',
-  '/api/orders'
+  '/api/orders',
+  '/admin'
 ];
 
 const adminRoutes = [
-  '/api/admin'
+  '/api/admin',
+  '/admin'
+];
+
+const methodProtectedRoutes = [
+  {
+    path: '/api/products',
+    protectedMethods: ['POST', 'PUT', 'DELETE', 'PATCH']
+  }
 ];
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const method = request.method;
 
-  // ตรวจสอบว่าเป็นเส้นทางที่ต้องการป้องกันหรือไม่
+  
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
   const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
+  
 
-  if (!isProtectedRoute && !isAdminRoute) {
+  const methodProtectedRoute = methodProtectedRoutes.find(route => pathname.startsWith(route.path));
+  const isMethodProtected = methodProtectedRoute && methodProtectedRoute.protectedMethods.includes(method);
+
+  
+  if (pathname.startsWith('/api/products') && method === 'GET') {
     return NextResponse.next();
   }
 
-  const authHeader = request.headers.get('authorization');
+  const token = await getToken({ 
+    req: request, 
+    secret: process.env.NEXTAUTH_SECRET
+  });
+
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return NextResponse.json(
-      { message: 'Unauthorized' },
-      { status: 401 }
-    );
+  if (!token) {
+    
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json(
+        { message: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
+
+    const url = new URL('/auth/signin', request.url);
+    url.searchParams.set('callbackUrl', encodeURI(request.url));
+    return NextResponse.redirect(url);
   }
 
-  // แยก token จาก header
-  const token = authHeader.split(' ')[1];
-
-  try {
-    // ตรวจสอบ token
-    const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret');
-    const { payload } = await jwtVerify(token, secretKey);
-
-    // ตรวจสอบสิทธิ์สำหรับ admin routes
-    if (isAdminRoute && payload.role !== 'ADMIN') {
+  
+  if (isAdminRoute && token.role !== 'ADMIN') {
+    
+    if (pathname.startsWith('/api')) {
       return NextResponse.json(
         { message: 'Forbidden: Admin access required' },
         { status: 403 }
       );
     }
-
-    return NextResponse.next();
-  } catch (error) {
-    return NextResponse.json(
-      { message: 'Invalid token' },
-      { status: 401 }
-    );
+    
+    
+    return NextResponse.redirect(new URL('/', request.url));
   }
+
+  return NextResponse.next();
 }
 
-// ระบุว่าใช้ middleware กับเส้นทางไหนบ้าง
+
 export const config = {
   matcher: [
     '/api/products/:path*',
     '/api/orders/:path*',
-    '/api/admin/:path*'
+    '/api/admin/:path*',
+    '/admin/:path*'
   ],
 };

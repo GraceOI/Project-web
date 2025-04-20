@@ -75,7 +75,7 @@ export async function GET(request: Request, { params }: Params) {
 export async function PUT(request: Request, { params }: Params) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     // Check if user is authenticated and is an admin
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json(
@@ -83,11 +83,11 @@ export async function PUT(request: Request, { params }: Params) {
         { status: 401 }
       );
     }
-    
+
     const { id } = params;
     const body = await request.json();
     const { status } = body;
-    
+
     // Validate status
     if (!status || !['PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED'].includes(status)) {
       return NextResponse.json(
@@ -95,22 +95,22 @@ export async function PUT(request: Request, { params }: Params) {
         { status: 400 }
       );
     }
-    
+
     // Check if order exists
     const existingOrder = await prisma.order.findUnique({
       where: {
         id,
       },
     });
-    
+
     if (!existingOrder) {
       return NextResponse.json(
         { message: 'Order not found' },
         { status: 404 }
       );
     }
-    
-    // Update order status in database
+
+    // Update the order status
     const updatedOrder = await prisma.order.update({
       where: {
         id,
@@ -119,12 +119,12 @@ export async function PUT(request: Request, { params }: Params) {
         status,
       },
     });
-    
+
     return NextResponse.json(updatedOrder);
   } catch (error) {
-    console.error('Error updating order:', error);
+    console.error('Error updating order status:', error);
     return NextResponse.json(
-      { message: 'An error occurred while updating the order' },
+      { message: 'An error occurred while updating the order status' },
       { status: 500 }
     );
   }

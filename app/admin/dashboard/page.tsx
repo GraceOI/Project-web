@@ -75,22 +75,6 @@ export default async function AdminDashboard() {
           </Link>
         </div>
         
-        {/* Total Orders */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-lg font-semibold text-gray-600 mb-2">
-            Total Orders
-          </h2>
-          <p className="text-3xl font-bold text-amber-600">
-            {stats.totalOrders}
-          </p>
-          <Link 
-            href="/admin/orders" 
-            className="text-sm text-amber-600 hover:text-amber-800 mt-2 inline-block"
-          >
-            View All Orders →
-          </Link>
-        </div>
-        
         {/* Total Revenue */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-semibold text-gray-600 mb-2">
@@ -176,17 +160,6 @@ export default async function AdminDashboard() {
             </tbody>
           </table>
         </div>
-        
-        {stats.totalOrders > 5 && (
-          <div className="px-6 py-4 border-t">
-            <Link 
-              href="/admin/orders" 
-              className="text-amber-600 hover:text-amber-800"
-            >
-              View all orders →
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   );
